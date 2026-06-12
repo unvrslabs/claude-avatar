@@ -1,0 +1,49 @@
+#!/bin/zsh
+# Status line di Claude Code: stato avatar (testo pulito, niente pixel-art) + info sessione.
+# Riceve il JSON di sessione su stdin, stampa UNA riga (ANSI ok).
+# `avatar quit` crea ~/.claude-avatar-hidden → solo info, senza stato.
+
+input=$(cat)
+
+model=$(echo "$input"  | jq -r '.model.display_name // "Claude"' 2>/dev/null)
+dir=$(echo "$input"    | jq -r '.workspace.current_dir // ""' 2>/dev/null)
+short="${dir/#$HOME/~}"
+branch=$(git -C "$dir" branch --show-current 2>/dev/null)
+
+R=$'\e[0m'; D=$'\e[2m'
+info="${D}${model} · ${short}${R}"
+[[ -n "$branch" ]] && info+=" ${D}· ${branch}${R}"
+
+# avatar spento → solo info essenziali
+if [[ -f "$HOME/.claude-avatar-hidden" ]]; then
+  print -r -- "$info"
+  exit 0
+fi
+
+sid=$(echo "$input" | jq -r '.session_id // ""' 2>/dev/null)
+state=$(curl -s -m 0.3 "http://127.0.0.1:4848/state?session=${sid}" 2>/dev/null | jq -r '.state // "idle"' 2>/dev/null)
+[[ -z "$state" || "$state" == "null" ]] && state=idle
+
+O=$'\e[38;2;216;119;86m'     # arancio Clawd
+G=$'\e[38;2;127;176;105m'    # verde ok
+Y=$'\e[38;2;217;164;65m'     # giallo thinking
+B=$'\e[38;2;91;143;176m'     # blu running/waiting
+E=$'\e[38;2;224;90;77m'      # rosso errore
+
+s=$(date +%s)
+sp=('⠋' '⠙' '⠸' '⠴'); f=${sp[$(( s % 4 + 1 ))]}
+
+case "$state" in
+  idle)     st="${D}· idle${R}" ;;
+  thinking) st="${Y}${f} thinking${R}" ;;
+  working)  st="${O}${f} working${R}" ;;
+  running)  st="${B}${f} running${R}" ;;
+  success)  st="${G}✓ success${R}" ;;
+  error)    st="${E}✗ error${R}" ;;
+  waiting)  st="${B}● aspetto te${R}" ;;
+  done)     st="${G}✓ done${R}" ;;
+  sleeping) st="${D}zZ${R}" ;;
+  *)        st="${D}${state}${R}" ;;
+esac
+
+print -r -- "${st} ${D}·${R} ${info}"

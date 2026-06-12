@@ -1,0 +1,16 @@
+[package]
+name = "claude-avatar"
+version = "1.0.0"
+description = "Claude Code Avatar — desktop pet che reagisce a Claude Code"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+serde_json = "1"
+
+[profile.release]
+strip = true
+lto = true

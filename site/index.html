@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Avatar — a desktop pet for Claude Code</title>
+<meta name="description" content="Clawd lives on your desktop and reacts in real time to what Claude Code is doing. One avatar per session.">
+<style>
+  :root{ --bg:#09090b; --skin:#d87756; --ink:#e8e3da; --dim:#8c857a; --line:#1d1d22 }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font-family:ui-monospace,"SF Mono",Menlo,monospace;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  main{width:min(680px,92vw);display:flex;flex-direction:column;align-items:center;padding:64px 0 48px;gap:40px}
+  #stage{width:300px;height:300px;display:flex;align-items:center;justify-content:center;position:relative}
+  canvas{image-rendering:pixelated;width:100%;height:100%}
+  h1{font-size:28px;letter-spacing:.04em;font-weight:600;text-align:center}
+  h1 span{color:var(--skin)}
+  .sub{color:var(--dim);font-size:15px;line-height:1.7;text-align:center;max-width:520px}
+  .install{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;width:100%;max-width:600px}
+  .install code{flex:1;padding:16px 18px;font-size:13px;color:var(--ink);white-space:nowrap;overflow-x:auto;background:#101013}
+  .install button{padding:16px 20px;background:var(--skin);color:#09090b;border:none;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:filter .15s}
+  .install button:hover{filter:brightness(1.1)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;width:100%}
+  .grid div{background:#0d0d10;padding:18px 20px;font-size:13px;line-height:1.6}
+  .grid b{color:var(--skin);font-weight:600;display:block;margin-bottom:4px}
+  .grid p{color:var(--dim)}
+  footer{padding:28px 0 36px;color:#55504a;font-size:12px;text-align:center;line-height:1.8;max-width:560px}
+  a{color:var(--dim)}
+  a:hover{color:var(--skin)}
+  @media(max-width:560px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+  <div id="stage"><canvas id="c" width="340" height="340"></canvas></div>
+  <h1>Claude <span>Avatar</span></h1>
+  <p class="sub">A tiny desktop pet for Claude Code. Clawd thinks, types, runs commands, celebrates your green tests and falls asleep when you stop. One avatar per session, synced through Claude Code hooks.</p>
+  <div class="install">
+    <code id="cmd">curl -fsSL https://avatar.unvrslabs.dev/install.sh | bash</code>
+    <button onclick="navigator.clipboard.writeText(document.getElementById('cmd').textContent).then(()=>{this.textContent='copied';setTimeout(()=>this.textContent='copy',1200)})">copy</button>
+  </div>
+  <div class="grid">
+    <div><b>Live states</b><p>Thinking, typing, running, success with confetti, errors, waiting for you, sleeping.</p></div>
+    <div><b>One pet per session</b><p>Three terminals, three Clawds, each tagged with its project name. Stacked, draggable.</p></div>
+    <div><b>Status line included</b><p>Minimal state plus model, folder and git branch at the bottom of every Claude Code session.</p></div>
+    <div><b>Light and local</b><p>Zero-dependency Node server on loopback only. Native window. Clean uninstall.</p></div>
+  </div>
+  <p class="sub">Open with <code>avatar</code> in your terminal or <code>/avatar</code> inside Claude Code. macOS, Node.js, jq required. <a href="https://github.com/unvrslabs/claude-avatar">Source on GitHub</a>.</p>
+</main>
+<footer>
+  Clawd is the property of <a href="https://www.anthropic.com">Anthropic</a>. Unofficial, non-commercial fan project, not affiliated with or endorsed by Anthropic.<br>
+  Code MIT. Made by <a href="https://unvrslabs.dev">UNVRS Labs</a>.
+</footer>
+<script>
+const cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+const UW=16,UH=10,PAD=36;
+const U=(cvs.width-PAD*2)/UW,OX=PAD,OY=(cvs.height-(UH+1)*U)/2;
+const COL={skin:'#d87756',ok:'#7fb069',err:'#e05a4d',think:'#d9a441',wait:'#5b8fb0',key:'#8b97a3',keyDark:'#5b646e',screen:'#16161b',dim:'#3c4754',txt:'#9c958a'};
+let t=0,blink=0,stateStart=0,current='working';
+const CYCLE=['working','thinking','running','success','waiting','sleeping'];let ci=0;
+setInterval(()=>{ci=(ci+1)%CYCLE.length;current=CYCLE[ci];stateStart=t;},3200);
+const STATES={
+  thinking:{face:'look',legs:'stand',bob:.9,wob:true},
+  working:{face:'neutral',legs:'walk',bob:1.6},
+  running:{face:'neutral',legs:'walk',bob:2.2},
+  success:{face:'happy',legs:'jump',bob:0,pop:true},
+  waiting:{face:'blinkwait',legs:'stand',bob:.6},
+  sleeping:{face:'sleep',legs:'sit',bob:.2,zzz:true},
+};
+function ru(x,y,w,h,c){ctx.fillStyle=c||COL.skin;ctx.fillRect(OX+x*U,OY+y*U,w*U+.5,h*U+.5);}
+function hole(x,y,w,h){ctx.clearRect(OX+x*U-.25,OY+y*U-.25,w*U+.5,h*U+.5);}
+function drawBody(){ru(2,0,12,8);ru(0,4,2,2);ru(14,4,2,2);}
+function drawLegs(mode,phase){if(mode==='sit')return;const L=[3,5,10,12];
+  L.forEach((lx,i)=>{let len=2;
+    if(mode==='walk')len=(Math.floor(phase)+i)%2===0?2:1.2;
+    else if(mode==='jump')len=2.4;
+    ru(lx,8,1,len);});}
+function drawFace(f){const L=4,R=11,Y=2;switch(f){
+  case'neutral':hole(L,Y,1,2);hole(R,Y,1,2);break;
+  case'look':{const s=Math.sin(t*0.04)>0?.6:-.6;hole(L+s,Y-.3,1,2);hole(R+s,Y-.3,1,2);}break;
+  case'happy':hole(L,Y-.4,1,2);hole(R,Y-.4,1,2);break;
+  case'sleep':hole(L,Y+1.4,1,.45);hole(R,Y+1.4,1,.45);break;
+  case'blinkwait':{const s=Math.sin(t*0.05)>0?.7:-.7;hole(L+s,Y,1,2);hole(R+s,Y,1,2);}break;}}
+function drawKeyboard(){
+  ru(1.2,10.7,13.6,1.5,COL.keyDark);
+  for(let r=0;r<2;r++)for(let k=0;k<9;k++){const lit=Math.floor(t/6)%18===r*9+k;
+    ru(1.55+k*1.47,10.9+r*.68,1.12,.48,lit?'#cfd8e0':COL.key);}}
+function scTyping(){drawKeyboard();ru(11.2,-4.5,6.4,3.5,COL.screen);
+  const wmax=[3.6,2.4,4.4],cols=[COL.ok,COL.wait,COL.think];
+  for(let i=0;i<3;i++){const w=Math.min(wmax[i],Math.max(0,((t*0.07)%7)-i*1.4));
+    if(w>0)ru(11.7,-4+i*.95,w,.45,cols[i]);}}
+function scRunning(){drawKeyboard();ru(10.6,-4.6,7,3.6,COL.screen);
+  for(let i=0;i<3;i++){if((t*0.05)%4>i+1){ru(11.1,-4.1+i*.95,.5,.45,COL.ok);
+    ru(11.8,-4.1+i*.95,2+((i*37)%20)/10,.45,COL.dim);}}
+  if(Math.floor(t/18)%2===0)ru(11.1,-1.3,.6,.2,COL.ok);}
+function scThinking(){for(let i=0;i<3;i++){const ph=Math.sin(t*0.07-i*0.9);
+  ctx.globalAlpha=.3+.5*Math.max(0,ph);ru(12.6+i*1.4,-1.4-i*1.2,.55+i*.3,.55+i*.3,COL.txt);}
+  ctx.globalAlpha=1;}
+function scSuccess(){const CONF=[[2,-3,COL.ok],[5,-4.5,COL.think],[8,-3.8,COL.wait],
+  [11,-4.6,COL.err],[14,-3.2,COL.skin],[3.5,-1.8,COL.wait],[12.5,-2,COL.ok],
+  [6.5,-2.6,COL.err],[9.5,-1.6,COL.think],[.8,-4,COL.skin]];
+  CONF.forEach(([x,y,c],i)=>{const yy=y+((t-stateStart)*0.06+i*.4)%9;
+    ctx.globalAlpha=.9;ru(x+Math.sin(t*0.05+i)*.4,yy,.45,.45,c);});ctx.globalAlpha=1;}
+function scWaiting(){ru(11.6,-4.7,5.6,3,'#1d1d22');ru(12.4,-1.7,1,.9,'#1d1d22');
+  for(let i=0;i<3;i++){const on=Math.floor(t/12)%3===i;
+    ru(12.7+i*1.4,-3.5,.8,.8,on?'#e8e3da':'#55504a');}}
+const SCENE={thinking:scThinking,working:scTyping,running:scRunning,success:scSuccess,waiting:scWaiting};
+function drawZ(){ctx.fillStyle='#6b6359';ctx.font=U*1.8+'px ui-monospace,monospace';
+  const zx=OX+14.4*U,zy=OY+(0.6+Math.sin(t*0.06)*.4)*U;ctx.fillText('z',zx,zy);
+  ctx.font=U*1.2+'px ui-monospace,monospace';ctx.fillText('z',zx+U*1.3,zy-U*1.3);}
+function frame(){t++;const st=STATES[current];ctx.clearRect(0,0,cvs.width,cvs.height);ctx.save();
+  let dx=0,dy=0,rot=0;dy+=Math.sin(t*0.08*(st.bob||1))*(st.bob?st.bob*1.4:0);
+  if(st.wob)rot=Math.sin(t*0.06)*0.04;
+  let scale=1;if(st.pop){const p=Math.max(0,1-(t-stateStart)/22);scale=1+p*0.18;}
+  if(st.legs==='jump')dy+=Math.abs(Math.sin(t*0.18))*-12;
+  if(st.legs==='sit')dy+=U*1.2;
+  ctx.translate(cvs.width/2+dx,cvs.height/2+dy);ctx.rotate(rot);ctx.scale(scale,scale);ctx.translate(-cvs.width/2,-cvs.height/2);
+  drawBody();drawLegs(st.legs,t*0.12);
+  blink=(blink+1)%220;const bl=blink>214&&st.face!=='sleep'&&st.face!=='happy';
+  if(!bl)drawFace(st.face);else{hole(4,3.5,1,.45);hole(11,3.5,1,.45);}
+  ctx.restore();
+  if(SCENE[current])SCENE[current]();
+  if(st.zzz)drawZ();requestAnimationFrame(frame);}
+frame();
+</script>
+</body>
+</html>

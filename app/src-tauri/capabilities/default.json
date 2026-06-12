@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Finestra avatar: drag della finestra senza bordi dalla pagina remota locale",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:4848"]
+  },
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging"
+  ]
+}
